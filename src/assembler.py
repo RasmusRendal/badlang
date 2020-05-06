@@ -7,5 +7,7 @@ def assemble(machine_code, output):
     f = open(saveLoc, "w")
     f.write(machine_code)
     f.close()
-    call(["gcc", "-nostdlib", saveLoc])
+    retVal = call(["gcc", "-nostdlib", saveLoc])
     os.remove(saveLoc)
+    if retVal != 0:
+        raise ValueError("Invalid assembly")

@@ -1,5 +1,19 @@
 from arpeggio import visit_parse_tree, PTNodeVisitor
 
+def AssemblySuffix(size):
+    if size == 1:
+        return "b"
+    elif size == 2:
+        return "w"
+    elif size == 4:
+        return "l"
+    elif size == 8:
+        return "q"
+    else:
+        raise ValueError("Unknown suffix size " + str(size))
+
+POINTER_SIZE = 8
+
 class literalManager():
     def __init__(self):
         self.literals = {}
@@ -17,23 +31,31 @@ class literalManager():
         return out
 
 class Symbol():
-    def __init__(self, position):
+    def __init__(self, datatype, position):
         self.position = position
+        if datatype == "string":
+            self.datatype = "string"
+            self.size = 8
+        elif datatype == "int":
+            self.datatype = "int"
+            self.size = 2
+        else:
+            raise ValueError("Unknown datatype")
 
 class SymbolManager():
     def __init__(self):
         self.symbols = {}
         self.currentPos = 0
 
-    def AddSymbol(self, name, size):
+    def AddSymbol(self, datatype, name, size):
         pos = self.currentPos
-        self.symbols[name] = Symbol(self.currentPos)
+        self.symbols[name] = Symbol(datatype, self.currentPos)
         self.currentPos += size
         return pos
 
     # The -8 here to make it work is worrying
     def GetStackPos(self, name):
-        pos = self.currentPos - self.symbols[name].position - 8
+        pos = self.currentPos - self.symbols[name].position - self.symbols[name].size
         return str(pos) + "(%rsp)"
 
 class generator(PTNodeVisitor):
@@ -43,24 +65,43 @@ class generator(PTNodeVisitor):
         self.symbolManager = SymbolManager()
         self.literalManager = literalManager()
 
+    # Returns address of string literal, and size
     def visit_string_literal(self, node, children):
-        return (self.literalManager.AddLiteral(children[0]), 8)
+        return (self.literalManager.AddLiteral(children[0]), POINTER_SIZE)
+
+    # Returns int value and size
+    def visit_integer(self, node, children):
+        return ("$" + str(node), 2)
 
     def visit_var_decl(self, node, children):
-        stringRet = children[2]
-        pos = self.symbolManager.AddSymbol(children[1], children[2][1])
-        print(pos, children[2])
-        return "pushq " + children[2][0] + "\n"
+        varType = children[0]
+        varName = children[1]
+        varValue = children[2][0]
+        varSize = children[2][1]
+        pos = self.symbolManager.AddSymbol(varType, varName, varSize)
+        return "push" + AssemblySuffix(varSize) + " " + varValue + "\n"
 
-    def visit_print(self, node, children):
-        arg = children[0]
+    def builtin_print(self, arg):
         symbol = self.symbolManager.symbols[arg]
         out = "mov $1, %rax\n"
         out += "mov $1, %rdi\n"
-        out += "mov " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
-        out += "mov $" + str(13) + ", %rdx\n"
+        if symbol.datatype == "string":
+            out += "mov " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
+            out += "mov $" + str(13) + ", %rdx\n"
+        elif symbol.datatype == "int":
+            out += "lea" + AssemblySuffix(POINTER_SIZE) + " " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
+            out += "mov $1, %rdx\n"
         out += "syscall\n"
         return out
+
+
+    def visit_functionCall(self, node, children):
+        arg = children[1]
+        function = children[0]
+        if function == "print":
+            return self.builtin_print(arg)
+        else:
+            raise ValueError("Undefined function")
 
     def visit_statement(self, node, children):
         out = ".global _start\n"

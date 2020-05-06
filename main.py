@@ -9,9 +9,13 @@ if len(sys.argv) < 2:
 f = open(sys.argv[1], 'r')
 inString = f.read()
 f.close()
-#inString = "a = \"Hello World\" print(a)"
 out = parser.parse(inString)
 
 machineCode = code_generation(out)
+i = 1
+for line in machineCode.split("\n"):
+    iString = " "*(2-len(str(i))) + str(i)
+    print(iString, line)
+    i += 1
 assemble(machineCode, "./a.out")
 
