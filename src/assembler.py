@@ -9,4 +9,3 @@ def assemble(machine_code, output):
     f.close()
     call(["gcc", "-nostdlib", saveLoc])
     os.remove(saveLoc)
-    return "lol"

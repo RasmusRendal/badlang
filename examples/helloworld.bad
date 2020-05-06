@@ -1,2 +1,10 @@
-a = "Hello World"
+string z = "NotHe World"
+string x = "NotHe World"
+string y = "NotHe World"
+string a = "Hello World"
+string b = "Wrong string"
+string c = "Wrong string"
+string d = "Wrong string"
+string e = "Wrong string"
+string f = "Wrong string"
 print(a)
