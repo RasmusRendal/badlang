@@ -96,6 +96,19 @@ class generator(PTNodeVisitor):
         symbol = self.symbolManager.symbols[varName]
         return symbol
 
+    def visit_addition(self, node, children):
+        print(children)
+
+    def visit_expr(self, node, children):
+        val = children[0]
+        for i in range(0, len(children)):
+            if node[i] == "+":
+                self.code += "movw " + self.symbolManager.GetStackPos(val) + ", %cx\n"
+                self.code += "addw " + self.symbolManager.GetStackPos(children[i]) + ", %cx\n"
+                self.code += "pushw %cx" + "\n"
+                val = self.symbolManager.AddSymbol("int", 2)
+        return val
+
     def visit_var_decl(self, node, children):
         name = str(children[1])
         symbol = children[2]

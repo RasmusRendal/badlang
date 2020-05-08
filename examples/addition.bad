@@ -1,0 +1,5 @@
+print(72)
+print(72+1)
+print(72+1+1)
+print(72+1+1+1)
+print(10)
