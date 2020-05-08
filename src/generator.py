@@ -46,53 +46,78 @@ class SymbolManager():
     def __init__(self):
         self.symbols = {}
         self.currentPos = 0
+        self.anonNameIndex = 0
 
-    def AddSymbol(self, datatype, name, size):
+    def GenName(self):
+        name = "_anon" + str(self.anonNameIndex)
+        self.anonNameIndex += 1
+        return name
+
+    def AddSymbol(self, datatype, size, name=None):
+        if name == None:
+            name = self.GenName()
+        if name in self.symbols:
+            raise ValueError("Symbol already defined")
         pos = self.currentPos
         self.symbols[name] = Symbol(datatype, self.currentPos)
         self.currentPos += size
-        return pos
+        return self.symbols[name]
 
-    # The -8 here to make it work is worrying
-    def GetStackPos(self, name):
-        pos = self.currentPos - self.symbols[name].position - self.symbols[name].size
+    def GetStackPos(self, symbol):
+        pos = self.currentPos - symbol.position - symbol.size
         return str(pos) + "(%rsp)"
 
+# From an expr, we want to return
+# a symbol
 class generator(PTNodeVisitor):
 
     def __init__(self, debug):
         super().__init__()
         self.symbolManager = SymbolManager()
         self.literalManager = literalManager()
+        self.code = ".global _start\n"
+        self.code += "\n"
+        self.code += ".text\n"
+        self.code += "_start:\n"
 
     # Returns address of string literal, and size
     def visit_string_literal(self, node, children):
-        return (self.literalManager.AddLiteral(children[0]), POINTER_SIZE)
+        addr = self.literalManager.AddLiteral(children[0])
+        self.code += "push" + AssemblySuffix(POINTER_SIZE) + " " + addr + "\n"
+        return self.symbolManager.AddSymbol("string", POINTER_SIZE)
 
     # Returns int value and size
     def visit_integer(self, node, children):
-        return ("$" + str(node), 2)
+        self.code += "push" + AssemblySuffix(2) + " $" + str(node) + "\n"
+        return self.symbolManager.AddSymbol("int", 2)
+
+    def visit_var(self, node, children):
+        varName = str(node)
+        symbol = self.symbolManager.symbols[varName]
+        return symbol
 
     def visit_var_decl(self, node, children):
-        varType = children[0]
-        varName = children[1]
-        varValue = children[2][0]
-        varSize = children[2][1]
-        pos = self.symbolManager.AddSymbol(varType, varName, varSize)
-        return "push" + AssemblySuffix(varSize) + " " + varValue + "\n"
+        name = str(children[1])
+        symbol = children[2]
+        key = None
+        for s in self.symbolManager.symbols:
+            if self.symbolManager.symbols[s] == symbol:
+                key = s
+                break
+        del self.symbolManager.symbols[key]
+        self.symbolManager.symbols[name] = symbol
+        return symbol
 
     def builtin_print(self, arg):
-        symbol = self.symbolManager.symbols[arg]
-        out = "mov $1, %rax\n"
-        out += "mov $1, %rdi\n"
-        if symbol.datatype == "string":
-            out += "mov " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
-            out += "mov $" + str(13) + ", %rdx\n"
-        elif symbol.datatype == "int":
-            out += "lea" + AssemblySuffix(POINTER_SIZE) + " " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
-            out += "mov $1, %rdx\n"
-        out += "syscall\n"
-        return out
+        self.code += "mov $1, %rax\n"
+        self.code += "mov $1, %rdi\n"
+        if arg.datatype == "string":
+            self.code += "mov " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
+            self.code += "mov $" + str(13) + ", %rdx\n"
+        elif arg.datatype == "int":
+            self.code += "lea" + AssemblySuffix(POINTER_SIZE) + " " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
+            self.code += "mov $1, %rdx\n"
+        self.code += "syscall\n"
 
 
     def visit_functionCall(self, node, children):
@@ -104,17 +129,12 @@ class generator(PTNodeVisitor):
             raise ValueError("Undefined function")
 
     def visit_statement(self, node, children):
-        out = ".global _start\n"
-        out += "\n"
-        out += ".text\n"
-        out += "_start:\n"
-        for c in children:
-            out += c
-        out += "mov $60, %rax\n"
-        out += "xor %rdi, %rdi\n"
-        out += "syscall\n"
-        out += self.literalManager.PrintLiteralPart()
-        return out
+        self.code += "mov $60, %rax\n"
+        self.code += "xor %rdi, %rdi\n"
+        self.code += "syscall\n"
+        self.code += self.literalManager.PrintLiteralPart()
 
 def code_generation(tree):
-    return visit_parse_tree(tree, generator(debug=False))
+    gen = generator(debug=False)
+    visit_parse_tree(tree, gen)
+    return gen.code

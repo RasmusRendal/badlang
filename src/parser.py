@@ -4,8 +4,10 @@ from arpeggio import RegExMatch as _
 def name():               return _(r'[a-zA-Z]*')
 def string_literal():     return '"', _(r'[a-z A-Z]*'), '"'
 def integer():            return _(r'[0-9]+')
-def var_decl():           return name, name, "=", [string_literal, integer]
-def functionCall():           return name, "(", name, ")"
+def var():                return name
+def expr():               return [integer, string_literal, var]
+def var_decl():           return name, name, "=", expr
+def functionCall():       return name, "(", expr, ")"
 def statement():          return OneOrMore([var_decl, functionCall]), EOF
 
 parser = ParserPython(statement)

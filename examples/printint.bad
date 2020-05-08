@@ -2,5 +2,7 @@ int H = 72
 int I = 73
 int EOL = 10
 print(H)
+print(72)
 print(I)
 print(EOL)
+print("I am a string")
