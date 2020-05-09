@@ -1,93 +1,8 @@
 from arpeggio import visit_parse_tree, PTNodeVisitor
-
-def AssemblySuffix(size):
-    if size == 1:
-        return "b"
-    elif size == 2:
-        return "w"
-    elif size == 4:
-        return "l"
-    elif size == 8:
-        return "q"
-    else:
-        raise ValueError("Unknown suffix size " + str(size))
-
-POINTER_SIZE = 8
-
-class literalManager():
-    def __init__(self):
-        self.literals = {}
-
-    def AddLiteral(self, literal):
-        literalName = "strlit" + str(len(self.literals))
-        self.literals[literalName] = literal
-        return "$" + literalName
-
-    def PrintLiteralPart(self):
-        out = ""
-        for s in self.literals:
-            out += s + ":\n"
-            out += ".ascii \"" + self.literals[s] + "\\n\\0\"\n"
-        return out
-
-class Symbol():
-    def __init__(self, datatype, position):
-        self.position = position
-        if datatype == "string":
-            self.datatype = "string"
-            self.size = 8
-        elif datatype == "int":
-            self.datatype = "int"
-            self.size = 2
-        else:
-            raise ValueError("Unknown datatype")
-
-class SymbolManager():
-    def __init__(self):
-        self.symbols = {}
-        self.currentPos = 0
-        self.anonNameIndex = 0
-
-    def GenName(self):
-        name = "_anon" + str(self.anonNameIndex)
-        self.anonNameIndex += 1
-        return name
-
-    def AddSymbol(self, datatype, size, name=None):
-        if name == None:
-            name = self.GenName()
-        if name in self.symbols:
-            raise ValueError("Symbol already defined")
-        pos = self.currentPos
-        self.symbols[name] = Symbol(datatype, self.currentPos)
-        self.currentPos += size
-        return self.symbols[name]
-
-    def GetStackPos(self, symbol):
-        pos = self.currentPos - symbol.position - symbol.size
-        return str(pos) + "(%rsp)"
-
-    def PopStack(self):
-        code = ""
-        for s in self.symbols:
-            symbol = self.symbols[s]
-            if symbol.size == 8:
-                code += "pop" + AssemblySuffix(symbol.size) + " %rcx\n"
-            elif symbol.size == 4:
-                code += "pop" + AssemblySuffix(symbol.size) + " %ecx\n"
-            elif symbol.size == 2:
-                code += "pop" + AssemblySuffix(symbol.size) + " %cx\n"
-            elif symbol.size == 1:
-                code += "pop" + AssemblySuffix(symbol.size) + " %cl\n"
-        self.symbols = {}
-        self.currentPos = 0
-        self.anonNameIndex = 0
-        return code
+from .symbols import *
+from .asmdefs import *
 
 
-
-# From an expr, we want to return
-# a symbol
 class generator(PTNodeVisitor):
 
     def __init__(self, debug):
@@ -97,13 +12,11 @@ class generator(PTNodeVisitor):
         self.procedures = []
         self.code = ""
 
-    # Returns address of string literal, and size
     def visit_string_literal(self, node, children):
         addr = self.literalManager.AddLiteral(children[0])
         self.code += "push" + AssemblySuffix(POINTER_SIZE) + " " + addr + "\n"
         return self.symbolManager.AddSymbol("string", POINTER_SIZE)
 
-    # Returns int value and size
     def visit_integer(self, node, children):
         self.code += "push" + AssemblySuffix(2) + " $" + str(node) + "\n"
         return self.symbolManager.AddSymbol("int", 2)
@@ -154,6 +67,9 @@ class generator(PTNodeVisitor):
         if procedure == "printn":
             return self.builtin_print(args)
         elif procedure in self.procedures:
+            for i in range(len(args)):
+                arg = args[i]
+                self.code += "mov" + AssemblySuffix(arg.size) + " " + self.symbolManager.GetStackPos(arg) + ", " + argumentRegisters[i] + "\n"
             self.code += "call" + AssemblySuffix(POINTER_SIZE) + " _" + procedure + "\n"
         else:
             raise ValueError("Undefined procedure")
@@ -169,6 +85,21 @@ class generator(PTNodeVisitor):
         for c in children:
             out += c
         return out
+
+    def visit_proc_args(self, node, children):
+        register = 0
+        for i in range(0, len(children), 2):
+            datatype = children[0]
+            arg = children[1]
+            if datatype == "int":
+                self.code += "push" + AssemblySuffix(2) + " " + argumentRegisters[register] + "\n"
+                self.symbolManager.AddSymbol("int", 2, arg)
+            elif datatype == "string":
+                self.code += "push" + AssemblySuffix(8) + " " + argumentRegisters[register] + "\n"
+                self.symbolManager.AddSymbol("string", 8, arg)
+            else:
+                raise ValueError("Unknown datatype")
+            register += 1
 
     def visit_procedure(self, node, children):
         procName = children[0]

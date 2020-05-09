@@ -1,0 +1,5 @@
+proc print(string in) {
+	printn(in, 8)
+}
+
+print("Hello!")

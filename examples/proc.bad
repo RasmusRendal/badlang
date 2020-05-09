@@ -1,4 +1,4 @@
-proc test {
+proc test() {
 	printn("Hello", 6)
 	printn("World", 6)
 }
