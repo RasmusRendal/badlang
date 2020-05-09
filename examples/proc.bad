@@ -1,8 +1,8 @@
 proc test {
-	print("Hello")
-	print("World")
+	printn("Hello", 6)
+	printn("World", 6)
 }
 
-print("We will now print hello world in two lines")
-test(1)
-print("Pretty cool, huh?")
+printn("We will now print hello world in two lines", 43)
+test()
+printn("Pretty cool, huh?", 18)

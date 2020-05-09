@@ -7,7 +7,7 @@ def integer():            return _(r'[0-9]+')
 def var():                return name
 def expr():               return [integer, string_literal, var], ZeroOrMore("+", expr)
 def var_decl():           return name, name, "=", expr
-def procedureCall():      return name, "(", expr, ")"
+def procedureCall():      return name, "(", Optional(expr, ZeroOrMore(",", expr)), ")"
 def statement():          return [var_decl, procedureCall]
 def statements():         return OneOrMore(statement)
 def procedure():          return "proc", name, "{", statements, "}"

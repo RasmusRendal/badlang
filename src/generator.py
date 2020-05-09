@@ -70,7 +70,15 @@ class SymbolManager():
     def PopStack(self):
         code = ""
         for s in self.symbols:
-            code += "pop" + AssemblySuffix(self.symbols[s].size) + " %rcx\n"
+            symbol = self.symbols[s]
+            if symbol.size == 8:
+                code += "pop" + AssemblySuffix(symbol.size) + " %rcx\n"
+            elif symbol.size == 4:
+                code += "pop" + AssemblySuffix(symbol.size) + " %ecx\n"
+            elif symbol.size == 2:
+                code += "pop" + AssemblySuffix(symbol.size) + " %cx\n"
+            elif symbol.size == 1:
+                code += "pop" + AssemblySuffix(symbol.size) + " %cl\n"
         self.symbols = {}
         self.currentPos = 0
         self.anonNameIndex = 0
@@ -127,23 +135,25 @@ class generator(PTNodeVisitor):
         self.symbolManager.symbols[name] = symbol
         return symbol
 
-    def builtin_print(self, arg):
+    def builtin_print(self, args):
+        toPrint = args[0]
+        printLen = args[1]
         self.code += "mov $1, %rax\n"
         self.code += "mov $1, %rdi\n"
-        if arg.datatype == "string":
-            self.code += "mov " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
-            self.code += "mov $" + str(13) + ", %rdx\n"
-        elif arg.datatype == "int":
-            self.code += "lea" + AssemblySuffix(POINTER_SIZE) + " " + self.symbolManager.GetStackPos(arg) + ", %rsi\n"
-            self.code += "mov $1, %rdx\n"
+        if toPrint.datatype == "string":
+            self.code += "mov " + self.symbolManager.GetStackPos(toPrint) + ", %rsi\n"
+        elif toPrint.datatype == "int":
+            self.code += "lea" + AssemblySuffix(POINTER_SIZE) + " " + self.symbolManager.GetStackPos(toPrint) + ", %rsi\n"
+        self.code += "xor %rdx, %rdx\n"
+        self.code += "movw " + self.symbolManager.GetStackPos(printLen) + ", %dx\n"
         self.code += "syscall\n"
 
 
     def visit_procedureCall(self, node, children):
-        arg = children[1]
         procedure = children[0]
-        if procedure == "print":
-            return self.builtin_print(arg)
+        args = children[1:]
+        if procedure == "printn":
+            return self.builtin_print(args)
         elif procedure in self.procedures:
             self.code += "call" + AssemblySuffix(POINTER_SIZE) + " _" + procedure + "\n"
         else:
@@ -165,7 +175,7 @@ class generator(PTNodeVisitor):
         procName = children[0]
         code = children[1]
         self.procedures.append(procName)
-        return "_" + procName + ":\n" + code + self.symbolManager.PopStack() + "ret" + AssemblySuffix(POINTER_SIZE) + "\n"
+        return "_" + procName + ":\n" + code + self.symbolManager.PopStack() + "ret" + AssemblySuffix(POINTER_SIZE) + "\n\n"
 
     def visit_procedures(self, node, children):
         out = ""

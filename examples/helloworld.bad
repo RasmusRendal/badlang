@@ -1,2 +1,2 @@
 string a = "Hello World"
-print(a)
+printn(a, 13)
