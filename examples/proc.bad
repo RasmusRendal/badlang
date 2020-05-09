@@ -1,0 +1,8 @@
+proc test {
+	print("Hello")
+	print("World")
+}
+
+print("We will now print hello world in two lines")
+test(1)
+print("Pretty cool, huh?")
