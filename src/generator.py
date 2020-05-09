@@ -144,7 +144,6 @@ class generator(PTNodeVisitor):
             self.code += "mov " + self.symbolManager.GetStackPos(toPrint) + ", %rsi\n"
         elif toPrint.datatype == "int":
             self.code += "lea" + AssemblySuffix(POINTER_SIZE) + " " + self.symbolManager.GetStackPos(toPrint) + ", %rsi\n"
-        self.code += "xor %rdx, %rdx\n"
         self.code += "movw " + self.symbolManager.GetStackPos(printLen) + ", %dx\n"
         self.code += "syscall\n"
 
